@@ -27,3 +27,16 @@ def verify_connection():
         finally:
             conn.close()
 
+def execute_query(query, params=None):
+    conn = connect_to_database()
+    if conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                conn.commit()
+                return cur.fetchall()
+        except Exception as e:
+            print(f"Query execution failed: {e}")
+            return None
+        finally:
+            conn.close()
