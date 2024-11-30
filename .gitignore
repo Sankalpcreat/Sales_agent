@@ -6,7 +6,7 @@ __pycache__/
 .pytest_cache/
 env/
 .venv/
-
+vosk_model
 # Virtual Environment
 .venv/
 env/
