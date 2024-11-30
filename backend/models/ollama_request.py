@@ -1,6 +1,6 @@
 import requests
 
-class OllamaService:
+class OllamaApiClient:
 
     def __init__(self,api_url:str="http://localhost:11400/api/generate"):
         self.api_url=api_url
