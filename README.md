@@ -6,7 +6,7 @@ The backend for the AI Sales Assistant automates sales processes such as lead sc
 
 Below is a high-level architecture diagram of the backend system:
 
-![Backend Architecture](./assets/screen.png)
+![Backend Architecture](./backend/assets/screen.png)
 
 ## Features
 
