@@ -12,6 +12,6 @@ class OllamaApiClient:
             response=requests.post(self.api_url,json=payload,timeout=10)
             response.raise_for_status()
             return response.json().get("response","No response from model.")
-        except requests.exception.RequestException as e:
+        except requests.exceptions.RequestException as e:
             return f"Error querying model: {e}"
 
