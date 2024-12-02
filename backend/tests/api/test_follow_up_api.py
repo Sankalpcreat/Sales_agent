@@ -13,7 +13,7 @@ def test_follow_up_valid_input():
     response = client.post("/api/follow_up", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["message"] == "Follow-up scheduled successfully!"
+    assert data["message"] == "Follow-up scheduled successfully."
 
 def test_follow_up_missing_fields():
     payload = {"lead_id": 1, "follow_up_time": "2024-12-05T10:00:00"}
@@ -29,3 +29,4 @@ def test_follow_up_invalid_date():
     }
     response = client.post("/api/follow_up", json=payload)
     assert response.status_code == 422
+    assert "Invalid date format" in response.json()["detail"]
