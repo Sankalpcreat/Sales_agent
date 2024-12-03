@@ -2,7 +2,7 @@ import requests
 
 class OllamaApiClient:
 
-    def __init__(self,api_url:str="http://localhost:11400/api/generate"):
+    def __init__(self,api_url:str="http://localhost:11434/api/generate"):
         self.api_url=api_url
     
     def query_model(self,prompt:str,model:str="llama3.2:latest")->str:
@@ -14,4 +14,3 @@ class OllamaApiClient:
             return response.json().get("response","No response from model.")
         except requests.exceptions.RequestException as e:
             return f"Error querying model: {e}"
-
