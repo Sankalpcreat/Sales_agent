@@ -21,8 +21,8 @@ def test_query_model_success(mocker, ollama_api_client):
     assert result == "Mocked model response"
     requests.post.assert_called_once_with(
         "http://localhost:11434/api/generate",
-        json={"model": model, "prompt": prompt},
-        timeout=10,
+        json={"model": model, "prompt": prompt, "stream": False},
+        timeout=30,
     )
 
 

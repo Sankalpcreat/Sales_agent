@@ -68,7 +68,8 @@ def test_transcribe_exception_handling(mock_vosk_model, mock_wave_open):
 
 def test_file_existence():
     import os
-    assert os.path.isfile("backend/tests/models/test_transcription.py")
+    current_file = os.path.abspath(__file__)
+    assert os.path.isfile(current_file), f"Test file not found at {current_file}"
 
 
 def test_import_statements():
