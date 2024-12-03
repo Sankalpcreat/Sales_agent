@@ -5,8 +5,8 @@ from models.transcription import TranscriptionService
 from models.ollama_request import OllamaApiClient
 
 router = APIRouter()
+model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "vosk_model")
 
-model_path = os.path.join(os.path.dirname(__file__), "models", "vosk_model")
 
 transcription_service = TranscriptionService(model_path=model_path)
 ollama_api_client = OllamaApiClient()
