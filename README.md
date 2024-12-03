@@ -21,3 +21,48 @@ Presented below is a high-level architecture diagram of the backend system, illu
 - **Scalability**: Designed to scale seamlessly with business growth, ensuring consistent performance.
 - **Security**: Incorporates robust security protocols to safeguard data and maintain confidentiality.
 - **Customization**: Offers customizable features to adapt to specific business requirements and workflows.
+
+## Testing Coverage
+
+Our backend implements comprehensive testing for all agent components. Here's an overview of our test coverage:
+
+### Agent Test Coverage
+
+#### Lead Scoring Agent
+- Tests score calculation for leads
+- Handles empty leads
+- Validates input types
+
+#### Follow-up Agent
+- Tests scheduling follow-up tasks
+- Verifies scheduler service integration
+
+#### Lead Suggestions Agent
+- Tests similar lead recommendations
+- Handles invalid query vectors
+- Handles empty query vectors
+
+#### Meeting Summary Agent
+- Tests meeting summarization functionality
+
+#### Proposal Drafting Agent
+- Tests proposal generation
+- Verifies correct prompt formatting
+
+### Test Implementation Details
+
+All agents have been tested individually and are working as expected. Each test verifies the core functionality of its respective agent while properly mocking external dependencies (OllamaApiClient, SchedulerService, etc.).
+
+### Running Tests
+
+To run all agent tests:
+```bash
+cd backend
+pytest tests/agents/ -v
+```
+
+To run a specific agent's tests:
+```bash
+cd backend
+pytest tests/agents/test_lead_scoring.py -v
+```

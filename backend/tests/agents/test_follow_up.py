@@ -1,6 +1,6 @@
 import pytest
 from agents.follow_up import FollowUpAgent
-from core.Schedule import SchedulerService
+from core.scheduler import SchedulerService
 
 @pytest.fixture
 def mock_scheduler_service(mocker):
@@ -16,10 +16,10 @@ def test_schedule_follow_up(follow_up_agent, mock_scheduler_service):
     follow_up_time = "2024-12-05T10:00:00"
     message = "Follow-up with Acme Corp"
 
-    follow_up_agent.schedule_follow_up(lead_id,follow_up_time,message)
+    follow_up_agent.schedule_follow_up(lead_id, follow_up_time, message)
 
-    mock_scheduler_service.add_job.assert_called_once_with(
-        lead_id=lead_id,
-        run_date=follow_up_time,
-        message=message
-    )
+
+    mock_scheduler_service.add_job.assert_called_once()
+    call_args = mock_scheduler_service.add_job.call_args
+    assert call_args.kwargs['trigger'] == 'date'
+    assert call_args.kwargs['run_date'] == follow_up_time

@@ -20,10 +20,12 @@ def test_generate_proposal(proposal_agent,mock_ollama_api_client):
 
     result=proposal_agent.generate_proposal(client_name,requirements)
 
-    assert result="Mock proposal for Acme Corp."
+    assert result == "Mock proposal for Acme Corp."
 
-    mock_ollama_api_client.query_model.assert_called_once_with(
-        prompt=f"Generate a proposal for {client_name} with requirements: {requirements}"
+    expected_prompt = (
+        f"Draft a proposal for the following client:\n"
+        f"Client Name:{client_name}\n"
+        f"Requirements:{requirements}\n"
+        f"Please provide a professional and detailed proposal."
     )
-
-
+    mock_ollama_api_client.query_model.assert_called_once_with(expected_prompt)
