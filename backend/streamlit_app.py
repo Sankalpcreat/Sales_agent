@@ -1,96 +1,352 @@
+import os
+import tempfile
 import streamlit as st
-import requests
 import json
-from pathlib import Path
 
-st.set_page_config(
-    page_title="Sales Agent Dashboard",
-    page_icon="💼",
-    layout="wide"
-)
+from core.orchestrator import CentralOrchestrator, TaskType
+from core.shared_memory import SharedMemoryService
+from models.ollama_request import OllamaApiClient
+from models.transcription import TranscriptionService
 
-st.title("🤖 AI Sales Assistant Dashboard")
+from agents.meeting_summary import MeetingSummaryAgent
+from agents.lead_suggestions import LeadSuggestionsAgent
+from agents.proposal_drafting import ProposalDraftingAgent
 
-# API endpoint
-API_URL = "http://localhost:8000/api"
+# Determine Vosk model path
+VOSK_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'vosk_model')
 
-# Sidebar for navigation
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Meeting Summary", "Lead Suggestions", "Proposal", "Lead Scoring", "Follow Up"])
+def initialize_system():
+    """
+    Initialize the entire AI sales assistant system
+    Creates shared memory and connects all agents
+    """
+    # Initialize core services
+    shared_memory = SharedMemoryService(vector_size=768)
+    ollama_client = OllamaApiClient()
+    transcription_service = TranscriptionService(model_path=VOSK_MODEL_PATH)
 
-if page == "Meeting Summary":
-    st.header("📝 Meeting Summary")
-    uploaded_file = st.file_uploader("Upload audio file (WAV format)", type=['wav'])
+    # Initialize agents with shared memory
+    meeting_agent = MeetingSummaryAgent(shared_memory, ollama_client, transcription_service)
+    lead_agent = LeadSuggestionsAgent(shared_memory, ollama_client)
+    proposal_agent = ProposalDraftingAgent(shared_memory, ollama_client)
+
+    # Initialize orchestrator
+    orchestrator = CentralOrchestrator()
+    orchestrator.agents[TaskType.MEETING_SUMMARY] = meeting_agent
+    orchestrator.agents[TaskType.LEAD_RECOMMENDATION] = lead_agent
+    orchestrator.agents[TaskType.PROPOSAL_DRAFTING] = proposal_agent
+
+    return orchestrator, shared_memory
+
+def display_shared_memory(shared_memory):
+    """
+    Visualize the contents of shared memory
+    """
+    st.sidebar.header("Shared Memory Contents")
     
-    if uploaded_file is not None:
-        if st.button("Generate Summary"):
-            files = {"file": uploaded_file}
-            with st.spinner("Generating summary..."):
-                response = requests.post(f"{API_URL}/summarize", files=files)
-                if response.status_code == 200:
-                    summary = response.json()["summary"]
-                    st.success("Summary generated successfully!")
-                    st.text_area("Meeting Summary", summary, height=200)
+    # Retrieve and display contexts
+    contexts = [
+        "latest_meeting_summary", 
+        "latest_lead_suggestions", 
+        "latest_proposal_context"
+    ]
+    
+    for context_key in contexts:
+        context = shared_memory.get_context(context_key)
+        if context:
+            with st.sidebar.expander(f"{context_key.replace('_', ' ').title()}"):
+                st.json(context)
+
+def main():
+    st.title("🚀 AI Sales Assistant Workflow")
+    
+    # Initialize system
+    if 'orchestrator' not in st.session_state:
+        st.session_state.orchestrator, st.session_state.shared_memory = initialize_system()
+    
+    # Workflow steps
+    workflow_steps = [
+        "Meeting Summary", 
+        "Lead Suggestions", 
+        "Proposal Drafting"
+    ]
+    
+    # Sidebar for navigation
+    selected_step = st.sidebar.radio("Workflow Steps", workflow_steps)
+    
+    # Display shared memory contents
+    display_shared_memory(st.session_state.shared_memory)
+    
+    # Workflow implementation
+    if selected_step == "Meeting Summary":
+        st.header("📝 Meeting Transcription")
+        
+        # Audio file upload
+        audio_file = st.file_uploader("Upload Meeting Recording", type=['wav'])
+        
+        if audio_file:
+            # Save uploaded file temporarily
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_audio:
+                temp_audio.write(audio_file.getbuffer())
+                temp_path = temp_audio.name
+            
+            # Process meeting summary
+            try:
+                result = st.session_state.orchestrator.execute_task({
+                    "audio_path": temp_path,
+                    "task": TaskType.MEETING_SUMMARY,
+                    "source": "streamlit_upload"
+                })
+                
+                if result['status'] == 'success':
+                    st.success("Meeting Summarized Successfully!")
+                    st.subheader("Transcript")
+                    st.text(result.get('transcript', 'No transcript available'))
+                    st.subheader("Summary")
+                    st.write(result.get('summary', 'No summary available'))
                 else:
-                    st.error(f"Error: {response.text}")
-
-elif page == "Lead Suggestions":
-    st.header("🎯 Lead Suggestions")
-    meeting_notes = st.text_area("Enter meeting notes", height=200)
+                    st.error(f"Error: {result.get('message', 'Unknown error')}")
+                
+                # Clean up temporary file
+                os.unlink(temp_path)
+            
+            except Exception as e:
+                st.error(f"Unexpected error: {e}")
     
-    if st.button("Get Lead Suggestions"):
-        with st.spinner("Analyzing notes..."):
-            response = requests.post(f"{API_URL}/lead-suggestions", json={"notes": meeting_notes})
-            if response.status_code == 200:
-                suggestions = response.json()["suggestions"]
-                st.success("Suggestions generated!")
-                for idx, suggestion in enumerate(suggestions, 1):
-                    st.write(f"{idx}. {suggestion}")
-            else:
-                st.error(f"Error: {response.text}")
-
-elif page == "Proposal":
-    st.header("📄 Proposal Generator")
-    client_info = st.text_area("Enter client information and requirements", height=200)
+    elif selected_step == "Lead Suggestions":
+        st.header("🎯 Lead Generation")
+        
+        # Get meeting context from shared memory
+        meeting_context = st.session_state.shared_memory.get_context('latest_meeting_summary')
+        
+        if meeting_context:
+            st.subheader("Previous Meeting Context")
+            st.json(meeting_context)
+        
+        requirements = st.text_area(
+            "Enter additional requirements or context for lead generation", 
+            height=200
+        )
+        
+        if st.button("Generate Lead Suggestions"):
+            try:
+                result = st.session_state.orchestrator.execute_task({
+                    "requirements": requirements,
+                    "task": TaskType.LEAD_RECOMMENDATION,
+                    "source": "lead_generation_step"
+                })
+                
+                if result['status'] == 'success':
+                    st.success("Lead Suggestions Generated!")
+                    st.write(result.get('suggestions', 'No suggestions available'))
+                else:
+                    st.error(f"Error: {result.get('message', 'Unknown error')}")
+            
+            except Exception as e:
+                st.error(f"Unexpected error: {e}")
     
-    if st.button("Generate Proposal"):
-        with st.spinner("Generating proposal..."):
-            response = requests.post(f"{API_URL}/proposal", json={"client_info": client_info})
-            if response.status_code == 200:
-                proposal = response.json()["proposal"]
-                st.success("Proposal generated!")
-                st.text_area("Generated Proposal", proposal, height=300)
-            else:
-                st.error(f"Error: {response.text}")
+    import os
+import tempfile
+import streamlit as st
+import json
 
-elif page == "Lead Scoring":
-    st.header("📊 Lead Scoring")
-    lead_info = st.text_area("Enter lead information", height=200)
+from core.orchestrator import CentralOrchestrator, TaskType
+from core.shared_memory import SharedMemoryService
+from models.ollama_request import OllamaApiClient
+from models.transcription import TranscriptionService
+
+from agents.meeting_summary import MeetingSummaryAgent
+from agents.lead_suggestions import LeadSuggestionsAgent
+from agents.proposal_drafting import ProposalDraftingAgent
+
+# Determine Vosk model path
+VOSK_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'vosk_model')
+
+def initialize_system():
+    """
+    Initialize the entire AI sales assistant system
+    Creates shared memory and connects all agents
+    """
+    # Initialize core services
+    shared_memory = SharedMemoryService(vector_size=768)
+    ollama_client = OllamaApiClient()
+    transcription_service = TranscriptionService(model_path=VOSK_MODEL_PATH)
+
+    # Initialize agents with shared memory
+    meeting_agent = MeetingSummaryAgent(shared_memory, ollama_client, transcription_service)
+    lead_agent = LeadSuggestionsAgent(shared_memory, ollama_client)
+    proposal_agent = ProposalDraftingAgent(shared_memory, ollama_client)
+
+    # Initialize orchestrator
+    orchestrator = CentralOrchestrator()
+    orchestrator.agents[TaskType.MEETING_SUMMARY] = meeting_agent
+    orchestrator.agents[TaskType.LEAD_RECOMMENDATION] = lead_agent
+    orchestrator.agents[TaskType.PROPOSAL_DRAFTING] = proposal_agent
+
+    return orchestrator, shared_memory
+
+def display_shared_memory(shared_memory):
+    """
+    Visualize the contents of shared memory
+    """
+    st.sidebar.header("Shared Memory Contents")
     
-    if st.button("Score Lead"):
-        with st.spinner("Analyzing lead..."):
-            response = requests.post(f"{API_URL}/score-leads", json={"lead_info": lead_info})
-            if response.status_code == 200:
-                score = response.json()["score"]
-                st.success(f"Lead Score: {score}/100")
-                st.progress(score/100)
-            else:
-                st.error(f"Error: {response.text}")
-
-else:  # Follow Up
-    st.header("📨 Follow-up Generator")
-    interaction_history = st.text_area("Enter interaction history", height=200)
+    # Retrieve and display contexts
+    contexts = [
+        "latest_meeting_summary", 
+        "latest_lead_suggestions", 
+        "latest_proposal_context"
+    ]
     
-    if st.button("Generate Follow-up"):
-        with st.spinner("Generating follow-up message..."):
-            response = requests.post(f"{API_URL}/follow-up", json={"history": interaction_history})
-            if response.status_code == 200:
-                message = response.json()["message"]
-                st.success("Follow-up message generated!")
-                st.text_area("Follow-up Message", message, height=200)
-            else:
-                st.error(f"Error: {response.text}")
+    for context_key in contexts:
+        context = shared_memory.get_context(context_key)
+        if context:
+            with st.sidebar.expander(f"{context_key.replace('_', ' ').title()}"):
+                st.json(context)
 
-# Footer
-st.markdown("---")
-st.markdown("Made with ❤️ by Your Sales AI Assistant")
+def main():
+    st.title("🚀 AI Sales Assistant Workflow")
+    
+    # Initialize system
+    if 'orchestrator' not in st.session_state:
+        st.session_state.orchestrator, st.session_state.shared_memory = initialize_system()
+    
+    # Workflow steps
+    workflow_steps = [
+        "Meeting Summary", 
+        "Lead Suggestions", 
+        "Proposal Drafting"
+    ]
+    
+    # Sidebar for navigation
+    selected_step = st.sidebar.radio("Workflow Steps", workflow_steps)
+    
+    # Display shared memory contents
+    display_shared_memory(st.session_state.shared_memory)
+    
+    # Workflow implementation
+    if selected_step == "Meeting Summary":
+        st.header("📝 Meeting Transcription")
+        
+        # Audio file upload
+        audio_file = st.file_uploader("Upload Meeting Recording", type=['wav'])
+        
+        if audio_file:
+            # Save uploaded file temporarily
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_audio:
+                temp_audio.write(audio_file.getbuffer())
+                temp_path = temp_audio.name
+            
+            # Process meeting summary
+            try:
+                result = st.session_state.orchestrator.execute_task({
+                    "audio_path": temp_path,
+                    "task": TaskType.MEETING_SUMMARY,
+                    "source": "streamlit_upload"
+                })
+                
+                if result['status'] == 'success':
+                    st.success("Meeting Summarized Successfully!")
+                    st.subheader("Transcript")
+                    st.text(result.get('transcript', 'No transcript available'))
+                    st.subheader("Summary")
+                    st.write(result.get('summary', 'No summary available'))
+                else:
+                    st.error(f"Error: {result.get('message', 'Unknown error')}")
+                
+                # Clean up temporary file
+                os.unlink(temp_path)
+            
+            except Exception as e:
+                st.error(f"Unexpected error: {e}")
+    
+    elif selected_step == "Lead Suggestions":
+        st.header("🎯 Lead Generation")
+        
+        # Get meeting context from shared memory
+        meeting_context = st.session_state.shared_memory.get_context('latest_meeting_summary')
+        
+        if meeting_context:
+            st.subheader("Previous Meeting Context")
+            st.json(meeting_context)
+        
+        requirements = st.text_area(
+            "Enter additional requirements or context for lead generation", 
+            height=200
+        )
+        
+        if st.button("Generate Lead Suggestions"):
+            try:
+                result = st.session_state.orchestrator.execute_task({
+                    "requirements": requirements,
+                    "task": TaskType.LEAD_RECOMMENDATION,
+                    "source": "lead_generation_step"
+                })
+                
+                if result['status'] == 'success':
+                    st.success("Lead Suggestions Generated!")
+                    st.write(result.get('suggestions', 'No suggestions available'))
+                else:
+                    st.error(f"Error: {result.get('message', 'Unknown error')}")
+            
+            except Exception as e:
+                st.error(f"Unexpected error: {e}")
+    
+    elif selected_step == "Proposal Drafting":
+        st.header("📄 Proposal Generation")
+        
+        # Retrieve context from shared memory
+        meeting_context = st.session_state.shared_memory.get_context('latest_meeting_summary')
+        lead_context = st.session_state.shared_memory.get_context('latest_lead_suggestions')
+        
+        # Display previous contexts in expandable sections
+        with st.expander("Meeting Context", expanded=False):
+            if meeting_context:
+                st.json(meeting_context)
+            else:
+                st.info("No meeting context available")
+        
+        with st.expander("Lead Suggestions Context", expanded=False):
+            if lead_context:
+                st.json(lead_context)
+            else:
+                st.info("No lead suggestions available")
+        
+        requirements = st.text_area(
+            "Enter proposal requirements or additional context", 
+            height=200
+        )
+        
+        if st.button("Draft Proposal"):
+            with st.spinner("Generating proposal..."):
+                try:
+                    result = st.session_state.orchestrator.execute_task({
+                        "requirements": requirements,
+                        "task": TaskType.PROPOSAL_DRAFTING,
+                        "source": "proposal_drafting_step"
+                    })
+                    
+                    if result['status'] == 'success' and result.get('proposal'):
+                        st.success("Proposal Draft Generated!")
+                        
+                        # Display the proposal in a nicely formatted way
+                        st.markdown("### Generated Proposal")
+                        st.markdown(result['proposal'])
+                        
+                        # Add download button for the proposal
+                        proposal_text = result['proposal']
+                        st.download_button(
+                            label="Download Proposal",
+                            data=proposal_text,
+                            file_name="techcorp_proposal.md",
+                            mime="text/markdown"
+                        )
+                    else:
+                        st.error(f"Error: {result.get('message', 'Failed to generate proposal')}")
+                
+                except Exception as e:
+                    st.error(f"Unexpected error while generating proposal: {str(e)}")
+
+
+if __name__ == "__main__":
+    main()
