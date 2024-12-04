@@ -1,4 +1,3 @@
-# backend/main.py
 import os
 from fastapi import FastAPI, UploadFile, File
 from core.shared_memory import SharedMemoryService
