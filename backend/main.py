@@ -7,7 +7,6 @@ from models.ollama_request import OllamaApiClient
 from models.transcription import TranscriptionService
 from agents.meeting_summary import MeetingSummaryAgent
 from agents.lead_suggestions import LeadSuggestionsAgent
-from agents.proposal_drafting import ProposalDraftingAgent  # Add this import
 
 # Determine Vosk model path
 VOSK_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'vosk_model')
@@ -20,13 +19,11 @@ transcription_service = TranscriptionService(model_path=VOSK_MODEL_PATH)
 # Initialize agents
 meeting_agent = MeetingSummaryAgent(shared_memory, ollama_client, transcription_service)
 lead_agent = LeadSuggestionsAgent(shared_memory, ollama_client)
-proposal_agent = ProposalDraftingAgent(shared_memory, ollama_client)  # Add this line
 
 # Initialize orchestrator
 orchestrator = CentralOrchestrator()
 orchestrator.agents[TaskType.MEETING_SUMMARY] = meeting_agent
 orchestrator.agents[TaskType.LEAD_RECOMMENDATION] = lead_agent
-orchestrator.agents[TaskType.PROPOSAL_DRAFTING] = proposal_agent  # Add this line
 
 # FastAPI setup
 app = FastAPI()
@@ -48,20 +45,6 @@ async def get_lead_suggestions(requirements: str):
         result = orchestrator.execute_task({
             "requirements": requirements,
             "task": TaskType.LEAD_RECOMMENDATION
-        })
-        return result
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/generate-proposal")  # Add this endpoint
-async def generate_proposal(requirements: str):
-    """
-    Generate a sales proposal based on meeting summary and lead suggestions
-    """
-    try:
-        result = orchestrator.execute_task({
-            "requirements": requirements,
-            "task": TaskType.PROPOSAL_DRAFTING
         })
         return result
     except Exception as e:

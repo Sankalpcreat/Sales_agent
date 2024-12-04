@@ -19,6 +19,8 @@ class ProposalRequest(BaseModel):
             raise ValueError("Must be a string")
         return v
 
+"""
+COMMENTED OUT - Not currently in use
 @router.post("/proposal")
 async def generate_proposal(request: ProposalRequest):
     try:
@@ -26,3 +28,4 @@ async def generate_proposal(request: ProposalRequest):
         return {"proposal": proposal}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating proposal: {str(e)}")
+"""

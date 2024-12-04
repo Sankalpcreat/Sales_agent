@@ -1,4 +1,8 @@
-from database import verify_connection
+"""
+COMMENTED OUT - Not currently in use
+from database import DatabaseService
 
-if __name__ == "__main__":
-    verify_connection()
+def test_connection():
+    db = DatabaseService()
+    db.test_connection()
+"""

@@ -22,9 +22,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 class LeadModel(Base):
-    """
-    Comprehensive database model for storing lead suggestions
-    """
+    """Database model for storing lead suggestions"""
     __tablename__ = "leads"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -39,9 +37,7 @@ class LeadModel(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class MeetingSummaryModel(Base):
-    """
-    Database model for storing meeting summaries
-    """
+    """Database model for storing meeting summaries"""
     __tablename__ = "meeting_summaries"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -49,103 +45,52 @@ class MeetingSummaryModel(Base):
     summary = Column(String)
     key_participants = Column(JSON)
     discussion_points = Column(JSON)
-    action_items = Column(JSON)
     vector = Column(ARRAY(Float), nullable=True)
-    source = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class DatabaseService:
-    """
-    Centralized database service for managing data persistence
-    """
+    """Database service for managing meeting summaries and leads"""
+    
     def __init__(self, database_url: str = DATABASE_URL):
-        """
-        Initialize database connection and session
-        """
         self.engine = create_engine(database_url, pool_pre_ping=True)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
     
     def init_db(self):
-        """
-        Create all database tables
-        """
+        """Create all database tables"""
         Base.metadata.create_all(bind=self.engine)
     
     def get_session(self) -> Session:
-        """
-        Create a new database session
-        """
+        """Create a new database session"""
         return self.SessionLocal()
     
     def store_lead(self, lead_data: Dict[str, Any], vector: np.ndarray = None):
-        """
-        Store lead suggestion in the database
-        
-        :param lead_data: Dictionary of lead information
-        :param vector: Optional vector representation of the lead
-        """
+        """Store lead suggestion in the database"""
         session = self.get_session()
         try:
-            # Convert numpy vector to list if provided
-            vector_list = vector.tolist() if vector is not None else None
-            
-            lead = LeadModel(
-                company_name=lead_data.get('company_name', 'Unknown'),
-                industry=lead_data.get('industry', 'Unknown'),
-                size_range=lead_data.get('size_range', 'Unknown'),
-                pain_points=lead_data.get('pain_points', 'Unknown'),
-                opportunity_details=lead_data.get('opportunity_details', {}),
-                vector=vector_list,
-                source=lead_data.get('source', 'system'),
-                confidence_score=lead_data.get('confidence_score', 0.0)
-            )
-            
+            lead = LeadModel(**lead_data)
+            if vector is not None:
+                lead.vector = vector.tolist()
             session.add(lead)
             session.commit()
             return lead.id
-        except Exception as e:
-            session.rollback()
-            print(f"Error storing lead: {e}")
-            return None
         finally:
             session.close()
     
     def store_meeting_summary(self, summary_data: Dict[str, Any], vector: np.ndarray = None):
-        """
-        Store meeting summary in the database
-        
-        :param summary_data: Dictionary of meeting summary information
-        :param vector: Optional vector representation of the summary
-        """
+        """Store meeting summary in the database"""
         session = self.get_session()
         try:
-            # Convert numpy vector to list if provided
-            vector_list = vector.tolist() if vector is not None else None
-            
-            summary = MeetingSummaryModel(
-                transcript=summary_data.get('transcript', ''),
-                summary=summary_data.get('summary', ''),
-                key_participants=summary_data.get('key_participants', {}),
-                discussion_points=summary_data.get('discussion_points', {}),
-                action_items=summary_data.get('action_items', {}),
-                vector=vector_list,
-                source=summary_data.get('source', 'system')
-            )
-            
+            summary = MeetingSummaryModel(**summary_data)
+            if vector is not None:
+                summary.vector = vector.tolist()
             session.add(summary)
             session.commit()
             return summary.id
-        except Exception as e:
-            session.rollback()
-            print(f"Error storing meeting summary: {e}")
-            return None
         finally:
             session.close()
     
     def close(self):
-        """
-        Close database connection
-        """
+        """Close database connection"""
         self.engine.dispose()
 
 # Initialize database tables when module is imported

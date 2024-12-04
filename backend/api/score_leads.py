@@ -17,15 +17,10 @@ class Lead(BaseModel):
 class LeadsRequest(BaseModel):
     leads: List[Lead]
 
+"""
+COMMENTED OUT - Not currently in use
 @router.post("/score_leads")
 async def score_leads(request: LeadsRequest):
-    leads = request.leads
-
-    if not leads:
-        raise HTTPException(status_code=400, detail="No leads provided.")
-    
-    try:
-        scores = lead_scoring_agent.score_leads([lead.model_dump() for lead in leads])
-        return {"scores": scores}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error scoring leads: {str(e)}")
+    # Implementation commented out
+    pass
+"""

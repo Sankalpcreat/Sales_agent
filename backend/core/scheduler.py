@@ -1,3 +1,5 @@
+"""
+COMMENTED OUT - Not currently in use
 from apscheduler.schedulers.background import BackgroundScheduler
 
 class SchedulerService:
@@ -14,3 +16,4 @@ class SchedulerService:
     def shutdown(self):
         self.scheduler.shutdown(wait=True)
         print("Scheduler shutdown successfully!")
+"""

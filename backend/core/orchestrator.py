@@ -7,10 +7,14 @@ from .vector_search import VectorSearchService
 from .database import DatabaseService
 
 class TaskType(Enum):
-    LEAD_SCORING = "lead_scoring"
+    # Active tasks
     MEETING_SUMMARY = "meeting_summary"
-    PROPOSAL_DRAFTING = "proposal_drafting"
     LEAD_RECOMMENDATION = "lead_recommendation"
+    
+    # Commented out tasks - not currently in use
+    # PROPOSAL_DRAFTING = "proposal_drafting"
+    # FOLLOW_UP = "follow_up"
+    # LEAD_SCORING = "lead_scoring"
 
 class CentralOrchestrator:
     def __init__(self):
@@ -39,16 +43,16 @@ class CentralOrchestrator:
         if "audio" in input_data:
             return TaskType.MEETING_SUMMARY
         elif "lead_info" in input_data:
-            return TaskType.LEAD_SCORING
+            return TaskType.LEAD_RECOMMENDATION
         elif "requirements" in input_data:
             # Check if requirements are for lead recommendation or proposal drafting
             requirements = input_data.get('requirements', '').lower()
             if any(keyword in requirements for keyword in ['proposal', 'draft', 'document']):
-                return TaskType.PROPOSAL_DRAFTING
+                return TaskType.LEAD_RECOMMENDATION
             return TaskType.LEAD_RECOMMENDATION
         
         # Default fallback
-        return TaskType.PROPOSAL_DRAFTING
+        return TaskType.MEETING_SUMMARY
     
     def execute_task(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         try:

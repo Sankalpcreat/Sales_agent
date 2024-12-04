@@ -14,6 +14,8 @@ router = APIRouter()
 scheduler_service = SchedulerService()
 follow_up_agent = FollowUpAgent(scheduler_service)
 
+"""
+COMMENTED OUT - Not currently in use
 @router.post("/follow_up")
 async def schedule_follow_up(request: FollowUpRequest):
     try:
@@ -33,3 +35,4 @@ async def schedule_follow_up(request: FollowUpRequest):
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error scheduling follow-up: {str(e)}")
+"""
