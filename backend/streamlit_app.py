@@ -1,7 +1,6 @@
 import os
 import tempfile
 import streamlit as st
-import json
 from core.orchestrator import CentralOrchestrator, TaskType
 from core.shared_memory import SharedMemoryService
 from models.ollama_request import OllamaApiClient
@@ -23,25 +22,19 @@ def initialize_system():
     return orchestrator, shared_memory
 
 def display_shared_memory(shared_memory):
-    st.sidebar.header("Shared Memory Contents")
+    st.sidebar.header("Shared Memory Contents", help="This section displays the latest context from previous operations.")
     contexts = ["latest_meeting_summary", "latest_lead_suggestions"]
     for context_key in contexts:
         context = shared_memory.get_context(context_key)
         if context:
-            with st.sidebar.expander(f"{context_key.replace('_', ' ').title()}"):
+            with st.sidebar.expander(f"{context_key.replace('_', ' ').title()}", expanded=False):
                 st.json(context)
 
-def main():
-    st.title("🚀 AI Sales Assistant")
-    if 'orchestrator' not in st.session_state:
-        st.session_state.orchestrator, st.session_state.shared_memory = initialize_system()
-    workflow_steps = ["Meeting Summary", "Lead Suggestions"]
-    selected_step = st.sidebar.radio("Workflow Steps", workflow_steps)
-    display_shared_memory(st.session_state.shared_memory)
-    if selected_step == "Meeting Summary":
-        st.header("📝 Meeting Transcription")
-        audio_file = st.file_uploader("Upload Meeting Recording", type=['wav'])
-        if audio_file:
+def meeting_summary_ui():
+    st.header("📝 Meeting Transcription and Summary")
+    audio_file = st.file_uploader("Upload Meeting Recording (WAV format)", type=['wav'], help="Upload a WAV file of your meeting recording.")
+    if audio_file:
+        with st.spinner("Processing audio..."):
             with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_audio:
                 temp_audio.write(audio_file.getbuffer())
                 temp_path = temp_audio.name
@@ -53,25 +46,29 @@ def main():
                 })
                 if result['status'] == 'success':
                     st.success("Meeting Summarized Successfully!")
-                    st.subheader("Transcript")
-                    st.text(result.get('transcript', 'No transcript available'))
+                    with st.expander("Transcript", expanded=False):
+                        st.text(result.get('transcript', 'No transcript available'))
                     st.subheader("Summary")
                     st.write(result.get('summary', 'No summary available'))
                 else:
                     st.error(f"Error: {result.get('message', 'Unknown error')}")
                 os.unlink(temp_path)
             except Exception as e:
-                st.error(f"Unexpected error: {e}")
-    elif selected_step == "Lead Suggestions":
-        st.header("🎯 Lead Generation")
-        left_col, right_col = st.columns([1, 1])
-        with left_col:
-            meeting_context = st.session_state.shared_memory.get_context('latest_meeting_summary')
-            if meeting_context:
-                with st.expander("Previous Meeting Context", expanded=False):
-                    st.json(meeting_context)
-            requirements = st.text_area("Enter requirements for lead generation", height=200)
-            if st.button("Generate Lead Suggestions"):
+                st.error(f"Unexpected error: {str(e)}")
+
+def lead_suggestions_ui():
+    st.header("🎯 Lead Generation")
+    col1, col2 = st.columns([3, 2])
+    with col1:
+        meeting_context = st.session_state.shared_memory.get_context('latest_meeting_summary')
+        if meeting_context:
+            with st.expander("Previous Meeting Context", expanded=False):
+                st.json(meeting_context)
+        requirements = st.text_area("Enter requirements for lead generation", 
+                                    height=150, 
+                                    help="Specify your requirements for potential leads.")
+        if st.button("Generate Lead Suggestions", type="primary"):
+            with st.spinner("Generating leads..."):
                 try:
                     result = st.session_state.orchestrator.execute_task({
                         "requirements": requirements,
@@ -84,13 +81,32 @@ def main():
                     else:
                         st.error(f"Error: {result.get('message', 'Unknown error')}")
                 except Exception as e:
-                    st.error(f"Unexpected error: {e}")
-        with right_col:
-            st.subheader("Generated Suggestions")
-            if 'lead_suggestions' in st.session_state:
-                st.write(st.session_state.lead_suggestions)
-            else:
-                st.info("Generate leads to see suggestions here")
+                    st.error(f"Unexpected error: {str(e)}")
+    
+    with col2:
+        st.subheader("Generated Suggestions")
+        if 'lead_suggestions' in st.session_state:
+            st.markdown(st.session_state.lead_suggestions)
+        else:
+            st.info("Generate leads to see suggestions here")
+
+def main():
+    st.set_page_config(page_title="AI Sales Assistant", page_icon="🚀", layout="wide")
+    st.title("🚀 AI Sales Assistant")
+    
+    if 'orchestrator' not in st.session_state:
+        with st.spinner("Initializing system..."):
+            st.session_state.orchestrator, st.session_state.shared_memory = initialize_system()
+    
+    workflow_steps = ["Meeting Summary", "Lead Suggestions"]
+    selected_step = st.sidebar.radio("Workflow Steps", workflow_steps)
+    
+    display_shared_memory(st.session_state.shared_memory)
+    
+    if selected_step == "Meeting Summary":
+        meeting_summary_ui()
+    elif selected_step == "Lead Suggestions":
+        lead_suggestions_ui()
 
 if __name__ == "__main__":
     main()
