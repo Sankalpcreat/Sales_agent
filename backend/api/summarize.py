@@ -13,34 +13,25 @@ summary_agent = MeetingSummaryAgent(transcription_service, ollama_api_client)
 
 @router.post("/summarize")
 async def summarize_meeting(file: UploadFile = File(...)):
-    if not file:
-        raise HTTPException(status_code=400, detail="No file uploaded.")
-    
-    if not file.filename.lower().endswith('.wav'):
-        raise HTTPException(status_code=400, detail="Invalid file type. Only WAV files are supported.")
+    if not file or not file.filename.lower().endswith('.wav'):
+        raise HTTPException(status_code=400, detail="Invalid WAV file")
     
     try:
         content = await file.read()
         if len(content) == 0:
-            raise HTTPException(status_code=400, detail="Empty file uploaded.")
+            raise HTTPException(status_code=400, detail="Empty file")
         
-        os.makedirs("temp", exist_ok=True)
         file_path = f"temp/{file.filename}"
+        os.makedirs("temp", exist_ok=True)
         
         with open(file_path, "wb") as f:
             f.write(content)
         
         try:
             summary = summary_agent.summarize_meeting(file_path)
-            if summary.startswith("Error during transcription:"):
-                error_msg = summary.replace("Error during transcription:", "").strip()
-                raise HTTPException(status_code=400, detail=f"Transcription error: {error_msg}")
             return {"summary": summary}
         finally:
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            os.remove(file_path)
                 
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error summarizing meeting: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

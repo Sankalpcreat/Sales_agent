@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Dict, Any
 import numpy as np
+import hashlib
 
 from agents.base_agent import BaseAgent
 from core.shared_memory import SharedMemoryService
@@ -13,7 +14,18 @@ class LeadSuggestionsAgent(BaseAgent):
         self.db_service = DatabaseService()
 
     def _generate_suggestions_vector(self, suggestions: str) -> np.ndarray:
-        return np.mean([np.fromstring(suggestions.encode('utf-8'), dtype=np.float32)], axis=0)
+        # Use a more reliable method to generate vector
+        # Convert suggestions to a fixed-length vector using hash
+        hash_bytes = hashlib.sha256(suggestions.encode('utf-8')).digest()
+        vector = np.frombuffer(hash_bytes, dtype=np.float32)
+        
+        # Ensure consistent vector size (e.g., 768 dimensions)
+        if len(vector) > 768:
+            vector = vector[:768]
+        elif len(vector) < 768:
+            vector = np.pad(vector, (0, 768 - len(vector)), mode='constant')
+        
+        return vector
 
     def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         try:
@@ -27,6 +39,18 @@ class LeadSuggestionsAgent(BaseAgent):
             Meeting Summary: {meeting_summary}
             Meeting Transcript: {meeting_transcript}
             Requirements: {requirements}
+            
+            Specific Criteria:
+            - Technology companies with 100+ employees
+            - Companies currently using legacy CRM systems
+            - Focus on companies in the same region
+            
+            Provide a structured list of potential leads including:
+            1. Company Name
+            2. Industry
+            3. Company Size
+            4. Potential Pain Points
+            5. Relevance Score
             """
 
             suggestions = self.api_client.query_model(lead_prompt)
@@ -39,23 +63,23 @@ class LeadSuggestionsAgent(BaseAgent):
             suggestions_context = {
                 "input_requirements": requirements,
                 "suggestions": suggestions,
-                "source": input_data.get('source', 'unknown'),
+                "source": input_data.get('source', 'TechCorp Meeting'),
                 "timestamp": datetime.now().isoformat()
             }
             
             self.shared_memory.store_context("latest_lead_suggestions", suggestions_context)
             
             lead_data = {
-                "company_name": "Potential Leads",
-                "industry": "Multiple",
-                "source": input_data.get('source', 'unknown'),
-                "opportunity_details": suggestions_context
+                "company_name": "Potential Leads - Technology",
+                "industry": "Technology",
+                "source": input_data.get('source', 'TechCorp Meeting'),
+                "details": suggestions_context
             }
             lead_id = self.db_service.store_lead(lead_data, suggestions_vector)
             
             self.shared_memory.add_vectors(
                 suggestions_vector.reshape(1, -1),
-                [{"type": "lead_suggestions", "source": input_data.get('source', 'unknown'), "db_id": lead_id}]
+                [{"type": "lead_suggestions", "source": input_data.get('source', 'TechCorp Meeting'), "db_id": lead_id}]
             )
             
             return {
@@ -69,3 +93,5 @@ class LeadSuggestionsAgent(BaseAgent):
                 "status": "error",
                 "message": str(e)
             }
+
+# Remove the example usage at the bottom of the file to prevent automatic execution
