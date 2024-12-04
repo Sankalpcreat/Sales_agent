@@ -94,4 +94,3 @@ class LeadSuggestionsAgent(BaseAgent):
                 "message": str(e)
             }
 
-# Remove the example usage at the bottom of the file to prevent automatic execution
